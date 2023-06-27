@@ -89,6 +89,25 @@ snippets into empty or new .org files."
   "synchronize to gist or not."
   :group 'code-library)
 
+(defcustom code-library-sub-files '(python-mode
+                                    ((?h . "pytorch.org")
+                                     (?m . "matplotlib.org")
+                                     (?n . "numpy.org")
+                                     (?p . "pandas.org")
+                                     (?t . "tensorflow.org")))
+  "filenames with their associated keys for specified mode"
+  :group 'code-library)
+
+(defcustom code-library-prev-file " "
+  "file location (name) of the current target file to use next time without prompt"
+  :type 'string
+  :group 'code-library)
+
+(defcustom code-library-use-prev-target-file t
+  "flag to set previous target file as current target file"
+  :type 'boolean
+  :group 'code-library)
+
 (defun code-library-trim-left-margin ()
   "Remove common line whitespace prefix."
   (save-excursion
@@ -213,7 +232,54 @@ HEAD is the org mode heading"
                                 :content content))))
     (gist-internal-new files nil head nil)))
 
+(defun select-extended-code-library(&rest args)
+  "replace filename"
+  (when (> (list-length (plist-get code-library-sub-files major-mode)) 0 )
+    (let*(
+          (basefile (cdr (assoc major-mode code-library-mode-file-alist)))
+          (extension (plist-get code-library-sub-files major-mode))
+          (extension (cl-acons '?0 basefile extension))
+          ;; set the string for input and options
+          (char-options (mapcar #'car extension))
+          (string-options (mapcar #'(lambda(x) (format "%s [%s]" (cdr x) (char-to-string(car x))))  extension))
+          (string-options (string-join string-options ", "))
+          (read-string-txt (format "select the file, %s :" string-options))
+          ;; use code-library-prev-file if allowed
+          (history-empty (and  code-library-use-prev-target-file (< (length code-library-prev-file) 2)))
+          (history-empty-or-new-target (or history-empty (not code-library-use-prev-target-file)))
+          (selected-file (when history-empty-or-new-target
+                           (read-char-choice read-string-txt char-options)))
+          ;; (selected-file 117)
+          ;; set the new target file name
+          (expanded-dir (file-name-as-directory code-library-directory))
+          (ext-filename (if history-empty-or-new-target
+                            (expand-file-name (cdr (assoc selected-file extension)) expanded-dir)
+                          code-library-prev-file)))
+      (setf (nth 0 (car args)) ext-filename)))
+  (setq code-library-prev-file (nth 0 (car args)))
+  (message "code-library snippet saved into: %s" code-library-prev-file)
+  (car args))
+
+(advice-add 'code-library-save-code-to-file
+            :filter-args #'select-extended-code-library)
+
 ;;;###autoload
+
+(defun code-library-toggle-prev-file()
+  "toggle using previous target file `code-library-prev-file'."
+  (interactive)
+  (setq code-library-use-prev-target-file (not code-library-use-prev-target-file))
+  (if code-library-use-prev-target-file
+      (message "toggled: code-library will target previous file: %s "
+               code-library-prev-file)
+    (message "toggled: code-library will not target previous file")))
+
+(defun code-library-clear-history()
+  "set `code-library-prev-file' to \"\" "
+  (interactive)
+  (setq code-library-prev-file " ")
+  (message "code-library-prev-file is cleared"))
+
 (defun code-library-save-code()
   "Save the snippet to it's file location."
   (interactive)

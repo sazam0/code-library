@@ -25,3 +25,4 @@
    If the whitespace in code snippet should be preserved (such as Makefile snippet), the major-mode should be added into `code-library-keep-indentation'
 
    If you want to add specified header to every new org-file, you can specify the `code-library-org-file-header' variable.
+* TODO documentation for advised function
